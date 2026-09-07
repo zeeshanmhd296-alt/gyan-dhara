@@ -17,26 +17,51 @@ jobs:
           ZIP_FILE=$(find . -maxdepth 1 -type f -name "*.zip" | head -1)
           echo "Using ZIP: $ZIP_FILE"
           unzip -q "$ZIP_FILE" -d project
-          find project -maxdepth 3 -type f | head -30
+
+      - name: Fix Java and Kotlin JVM target
+        working-directory: project
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+
+          marker = "    targetSdk = 35\n"
+
+          fix = """    targetSdk = 35
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          """
+
+          if "sourceCompatibility = JavaVersion.VERSION_17" not in s:
+              s = s.replace(marker, fix)
+
+          p.write_text(s)
+          print(p.read_text())
+          PY
 
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: "8.9"
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Fix JVM target
-        working-directory: project
-        run: |
-            sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' app/build.gradle.kts
       - name: Build AAB
         working-directory: project
         run: gradle bundleRelease --no-daemon
