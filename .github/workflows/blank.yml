@@ -27,38 +27,35 @@ jobs:
           p = Path("app/build.gradle.kts")
           s = p.read_text()
 
-          # Remove any previous JVM fix that may have been appended
+          # Remove old JVM fix if present
           marker = "\n// Force Java and Kotlin compilation to JVM 17"
           if marker in s:
               s = s.split(marker)[0].rstrip() + "\n"
 
-          # Add Android Java 17 compile options
-          if 'compileOptions {' not in s:
+          # Add Java 17
+          if "compileOptions {" not in s:
               s = s.replace(
-                  'targetSdk = 35',
-                  '''targetSdk = 35
+                  "targetSdk = 35",
+                  """targetSdk = 35
 
           compileOptions {
               sourceCompatibility = JavaVersion.VERSION_17
               targetCompatibility = JavaVersion.VERSION_17
-          }'''
+          }"""
               )
 
-          # Add Kotlin JVM 17 configuration
-          s += '''
+          # Add Kotlin 17
+          s += """
 
           tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
               kotlinOptions {
                   jvmTarget = "17"
               }
           }
-          '''
+          """
 
           p.write_text(s)
           PY
-
-          echo "===== FINAL build.gradle.kts ====="
-          cat app/build.gradle.kts
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -74,8 +71,26 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Build AAB
+      - name: Create release keystore
         working-directory: project
+        run: |
+          keytool -genkeypair \
+            -alias gyan-dhara-upload \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -keystore gyan-dhara-upload.jks \
+            -storepass GyanDhara2026 \
+            -keypass GyanDhara2026 \
+            -dname "CN=Gyan Dhara, OU=Gyan Dhara, O=Gyan Dhara, L=India, ST=India, C=IN"
+
+      - name: Build signed AAB
+        working-directory: project
+        env:
+          KEYSTORE_PATH: gyan-dhara-upload.jks
+          KEYSTORE_PASSWORD: GyanDhara2026
+          KEY_ALIAS: gyan-dhara-upload
+          KEY_PASSWORD: GyanDhara2026
         run: |
           gradle clean bundleRelease --no-daemon
 
@@ -84,8 +99,10 @@ jobs:
           echo "===== AAB FILES ====="
           find project -type f -name "*.aab" -print
 
-      - name: Upload AAB
+      - name: Upload AAB and signing key
         uses: actions/upload-artifact@v4
         with:
-          name: gyan-dhara-aab
-          path: project/**/build/outputs/bundle/release/*.aab
+          name: gyan-dhara-release
+          path: |
+            project/**/build/outputs/bundle/release/*.aab
+            project/gyan-dhara-upload.jks
