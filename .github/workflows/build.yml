@@ -70,7 +70,7 @@ jobs:
       - name: Build AAB
         working-directory: project
         env:
-          KEYSTORE_PATH: gyan-dhara-upload.jks
+          KEYSTORE_PATH: ../gyan-dhara-upload.jks
           KEYSTORE_PASSWORD: ${{ env.STORE_PASS }}
           KEY_ALIAS: ${{ env.KEY_ALIAS_VAL }}
           KEY_PASSWORD: ${{ env.KEY_PASS }}
