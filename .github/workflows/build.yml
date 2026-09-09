@@ -1,0 +1,95 @@
+name: Build Gyan Dhara AAB
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download project
+        uses: actions/checkout@v4
+
+      - name: Find and extract project ZIP
+        run: |
+          mkdir project
+          ZIP_FILE=$(find . -maxdepth 1 -type f -name "*.zip" | head -1)
+          echo "Using ZIP: $ZIP_FILE"
+          unzip -q "$ZIP_FILE" -d project
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Restore or create release keystore
+        working-directory: project
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "Using existing keystore from secrets."
+            echo "$KEYSTORE_BASE64" | base64 -d > gyan-dhara-upload.jks
+            echo "STORE_PASS=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS_VAL=$KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "KEY_PASS=$KEY_PASSWORD" >> "$GITHUB_ENV"
+          else
+            echo "No keystore secret found — generating a NEW one for the first build."
+            echo "IMPORTANT: save this keystore as a secret after this run or future updates will fail to sign consistently."
+            GEN_PASS="GyanDhara2026"
+            keytool -genkeypair \
+              -alias gyan-dhara-upload \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -keystore gyan-dhara-upload.jks \
+              -storepass "$GEN_PASS" \
+              -keypass "$GEN_PASS" \
+              -dname "CN=Gyan Dhara, OU=Gyan Dhara, O=Gyan Dhara, L=India, ST=India, C=IN"
+            echo "STORE_PASS=$GEN_PASS" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS_VAL=gyan-dhara-upload" >> "$GITHUB_ENV"
+            echo "KEY_PASS=$GEN_PASS" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build AAB
+        working-directory: project
+        env:
+          KEYSTORE_PATH: gyan-dhara-upload.jks
+          KEYSTORE_PASSWORD: ${{ env.STORE_PASS }}
+          KEY_ALIAS: ${{ env.KEY_ALIAS_VAL }}
+          KEY_PASSWORD: ${{ env.KEY_PASS }}
+        run: |
+          gradle clean bundleRelease --no-daemon
+
+      - name: Show AAB and confirm SDK versions
+        run: |
+          echo "===== AAB FILES ====="
+          find project -type f -name "*.aab" -print
+          echo "===== SDK VERSIONS USED ====="
+          grep -E "compileSdk|targetSdk" project/app/build.gradle.kts
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: gyan-dhara-release
+          path: project/**/build/outputs/bundle/release/*.aab
+
+      - name: Upload freshly generated keystore (first run only)
+        if: ${{ !secrets.KEYSTORE_BASE64 }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: keystore-SAVE-THIS
+          path: project/gyan-dhara-upload.jks
