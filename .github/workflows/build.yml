@@ -33,6 +33,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Restore or create release keystore
+        id: keystore
         working-directory: project
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -46,6 +47,7 @@ jobs:
             echo "STORE_PASS=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
             echo "KEY_ALIAS_VAL=$KEY_ALIAS" >> "$GITHUB_ENV"
             echo "KEY_PASS=$KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "generated=false" >> "$GITHUB_OUTPUT"
           else
             echo "No keystore secret found — generating a NEW one for the first build."
             echo "IMPORTANT: save this keystore as a secret after this run or future updates will fail to sign consistently."
@@ -62,6 +64,7 @@ jobs:
             echo "STORE_PASS=$GEN_PASS" >> "$GITHUB_ENV"
             echo "KEY_ALIAS_VAL=gyan-dhara-upload" >> "$GITHUB_ENV"
             echo "KEY_PASS=$GEN_PASS" >> "$GITHUB_ENV"
+            echo "generated=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build AAB
@@ -88,7 +91,7 @@ jobs:
           path: project/**/build/outputs/bundle/release/*.aab
 
       - name: Upload freshly generated keystore (first run only)
-        if: ${{ !secrets.KEYSTORE_BASE64 }}
+        if: steps.keystore.outputs.generated == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: keystore-SAVE-THIS
