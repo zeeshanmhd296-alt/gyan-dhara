@@ -31,9 +31,20 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        continue-on-error: true
 
       - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses || true
+        run: |
+          SDKMANAGER=$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}" -name sdkmanager -type f 2>/dev/null | head -n 1)
+          if [ -z "$SDKMANAGER" ]; then
+            SDKMANAGER=$(find /usr/local/lib/android /opt/android-sdk /usr/lib/android-sdk -name sdkmanager -type f 2>/dev/null | head -n 1)
+          fi
+          echo "Using sdkmanager at: $SDKMANAGER"
+          if [ -n "$SDKMANAGER" ]; then
+            yes | "$SDKMANAGER" --licenses || true
+          else
+            echo "WARNING: sdkmanager not found; skipping explicit license acceptance."
+          fi
 
       # If KEYSTORE_BASE64 secret exists, reuse it (this is the normal path
       # after your first run). If it doesn't exist yet, generate a fresh one
