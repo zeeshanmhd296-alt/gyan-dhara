@@ -87,7 +87,7 @@ jobs:
       - name: Build AAB
         working-directory: project
         env:
-          KEYSTORE_PATH: gyan-dhara-upload.jks
+          KEYSTORE_PATH: ../gyan-dhara-upload.jks
           KEYSTORE_PASSWORD: ${{ env.STORE_PASS }}
           KEY_ALIAS: ${{ env.KEY_ALIAS_VAL }}
           KEY_PASSWORD: ${{ env.KEY_PASS }}
@@ -109,6 +109,12 @@ jobs:
 
       # Only produced when no secret existed yet — download this ONCE,
       # save the .jks safely, then add it as a secret (see instructions below).
+      - name: Upload freshly generated keystore (first run only)
+        if: steps.keystore.outputs.generated == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: keystore-SAVE-THIS
+          path: project/gyan-dhara-upload.jks      # save the .jks safely, then add it as a secret (see instructions below).
       - name: Upload freshly generated keystore (first run only)
         if: steps.keystore.outputs.generated == 'true'
         uses: actions/upload-artifact@v4
